@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from excel_io import load_to_dataframe
 from paths import INPUT_DIR, PROCESSING_DIR
 
 SUPPORTED_EXTENSIONS = {".xlsx", ".xls", ".csv", ".tsv"}
@@ -36,23 +37,6 @@ def ask_user_to_select(files: list[Path]) -> Path:
         if 1 <= index <= len(files):
             return files[index - 1]
         print(f"Please choose a number between 1 and {len(files)}.")
-
-
-def load_to_dataframe(path: Path) -> pd.DataFrame:
-    suffix = path.suffix.lower()
-    if suffix == ".xlsx":
-        # calamine is more tolerant of invalid Excel stylesheets
-        try:
-            return pd.read_excel(path, engine="calamine")
-        except Exception:
-            return pd.read_excel(path, engine="openpyxl")
-    if suffix == ".xls":
-        return pd.read_excel(path)
-    if suffix == ".csv":
-        return pd.read_csv(path)
-    if suffix == ".tsv":
-        return pd.read_csv(path, sep="\t")
-    raise ValueError(f"Unsupported file type: {path.suffix}")
 
 
 def save_dataframe(df: pd.DataFrame, source: Path) -> Path:

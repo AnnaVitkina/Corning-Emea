@@ -85,6 +85,39 @@ def configure(code_dir: Path | None = None) -> Path:
     return DATA_ROOT
 
 
+def ensure_dependencies() -> None:
+    """Install runtime packages when missing (needed on fresh Colab runtimes)."""
+    import importlib
+    import subprocess
+
+    required = [
+        ("pandas", "pandas"),
+        ("openpyxl", "openpyxl"),
+        ("python-calamine", "python_calamine"),
+    ]
+    missing = []
+    for pip_name, module_name in required:
+        try:
+            importlib.import_module(module_name)
+        except ImportError:
+            missing.append(pip_name)
+
+    if not missing:
+        return
+
+    code_dir = resolve_code_dir()
+    req_file = code_dir / "requirements.txt"
+    print(f"Installing missing packages: {', '.join(missing)}")
+    if req_file.exists():
+        cmd = [sys.executable, "-m", "pip", "install", "-q", "-r", str(req_file)]
+    else:
+        cmd = [sys.executable, "-m", "pip", "install", "-q", *missing]
+    subprocess.check_call(cmd)
+    # Clear failed import caches so pandas can see the new engine
+    for mod in ("python_calamine", "pandas.io.excel", "pandas.io.excel._calamine"):
+        sys.modules.pop(mod, None)
+
+
 def maybe_mount_google_drive() -> bool:
     """Mount Drive on Colab when the shared data folder is not visible yet."""
     if COLAB_DATA_ROOT.exists():
@@ -102,10 +135,15 @@ def maybe_mount_google_drive() -> bool:
 
 
 def bootstrap() -> Path:
-    """Colab/local entry setup: mount Drive if needed, then configure paths."""
+    """Colab/local entry setup: deps, Drive mount, then configure paths."""
+    ensure_dependencies()
     maybe_mount_google_drive()
     data_root = configure()
-    mode = "colab-drive" if data_root == COLAB_DATA_ROOT.resolve() or str(COLAB_DATA_ROOT) in str(data_root) else "local"
+    mode = (
+        "colab-drive"
+        if data_root == COLAB_DATA_ROOT.resolve() or str(COLAB_DATA_ROOT) in str(data_root)
+        else "local"
+    )
     if ENV_DATA_ROOT in os.environ and os.environ[ENV_DATA_ROOT].strip():
         mode = "env-override"
     print(f"Code dir : {CODE_DIR}")
